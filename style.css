@@ -24,11 +24,15 @@ body {
 }
 
 .panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  position: sticky;
+  top: -16px;
+  z-index: 10;
+
+  background: #f4f4f4;
+  margin: -16px -16px 16px -16px;
+  padding: 16px;
+
+  border-bottom: 1px solid #676767;
 }
 
 .panel-header h2 {
@@ -85,7 +89,8 @@ button:hover {
   display: none;
 }
 
-.route {
+.route,
+.pin {
   border: 1px solid #ddd;
   border-radius: 10px;
   padding: 10px;
@@ -94,7 +99,9 @@ button:hover {
 }
 
 .route input,
-.route select {
+.route select,
+.pin input,
+.pin select {
   width: 100%;
   box-sizing: border-box;
   margin-top: 4px;
@@ -121,7 +128,8 @@ button:hover {
   height: 100%;
 }
 
-.route-header {
+.route-header,
+.pin-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -129,7 +137,8 @@ button:hover {
   cursor: pointer;
 }
 
-.route-title {
+.route-title,
+.pin-title {
   font-size: 14px;
   font-weight: bold;
   overflow: hidden;
@@ -137,37 +146,64 @@ button:hover {
   text-overflow: ellipsis;
 }
 
-.route-body {
+.route-body,
+.pin-body {
   margin-top: 10px;
 }
 
-.route.collapsed .route-body {
+.route.collapsed .route-body,
+.pin.collapsed .pin-body {
   display: none;
 }
 
-.delete-route-btn {
-  background: #8b1e1e;
-}
-
-.route-header-actions {
+.route-header-actions,
+.pin-header-actions {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
 }
 
 .delete-route-btn,
+.delete-pin-btn,
 .danger-btn {
   background: #8b1e1e;
 }
 
-.route-header-info {
+.route-header-info,
+.pin-header-info {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.route-time-summary {
+.route-time-summary,
+.pin-time-summary {
   font-size: 12px;
   opacity: 0.75;
   margin-top: 3px;
+}
+
+.emoji-icon {
+  background: transparent;
+  border: none;
+}
+
+.emoji-icon .emoji-marker {
+  font-size: 32px;
+  line-height: 32px;
+  display: block;
+  width: 32px;
+  height: 32px;
+  text-align: center;
+}
+
+.pin .pin-duration-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pin .pin-duration-row input {
+  width: 70px;
+  margin: 0;
 }

@@ -20,7 +20,7 @@ function addDay() {
   dayEl.innerHTML = `
     <div class="day-header">
       <span class="day-title"></span>
-      <input class="day-date" type="date" value="${getTodayDateString()}" />
+      <input class="day-date" type="date" value="${getNextDateString()}" />
 
       <div>
         <button class="delete-day-btn danger-btn">Delete</button>
@@ -29,14 +29,16 @@ function addDay() {
     </div>
 
     <div class="day-body">
-      <button class="add-route-btn">+ Route</button>
       <div class="routes-container"></div>
+      <button class="add-route-btn">+ Route</button>
+      <button class="add-pin-btn">+ Pin</button>
     </div>
   `;
 
   const toggleBtn = dayEl.querySelector(".toggle-day-btn");
   const deleteBtn = dayEl.querySelector(".delete-day-btn");
   const addRouteBtn = dayEl.querySelector(".add-route-btn");
+  const addPinBtn = dayEl.querySelector(".add-pin-btn");
   const routesContainer = dayEl.querySelector(".routes-container");
 
   const dayDateInput = dayEl.querySelector(".day-date");
@@ -49,14 +51,21 @@ function addDay() {
   toggleBtn.addEventListener("click", () => {
     dayEl.classList.toggle("collapsed");
     toggleBtn.textContent = dayEl.classList.contains("collapsed") ? "+" : "−";
+    updateUrlHash();
   });
 
   deleteBtn.addEventListener("click", () => {
     dayEl.remove();
     updateUrlHash();
   });
+
   addRouteBtn.addEventListener("click", () => {
     addRouteEditor(routesContainer);
+    updateUrlHash();
+  });
+
+  addPinBtn.addEventListener("click", () => {
+    addPinEditor(routesContainer);
     updateUrlHash();
   });
 
@@ -76,6 +85,230 @@ function addDay() {
   }
 
   daysContainer.appendChild(dayEl);
+}
+
+function addPinEditor(container) {
+  const pinEl = document.createElement("div");
+  pinEl.className = "pin collapsed";
+
+  pinEl.innerHTML = `
+    <div class="pin-header">
+      <div class="pin-header-info">
+        <span class="pin-title">Pin</span>
+        <span class="pin-time-summary">—</span>
+      </div>
+
+      <div class="pin-header-actions">
+        <button class="toggle-visibility-btn">Show</button>
+        <button class="delete-pin-btn">Delete</button>
+        <button class="toggle-pin-btn">+</button>
+      </div>
+    </div>
+
+    <div class="pin-body">
+      <label>Place</label>
+      <input class="pin-query" placeholder="Where?" />
+
+      <label>Emoji</label>
+      <div class="emoji-picker-row">
+        <input class="pin-emoji" value="🏠" />
+        <button class="emoji-option">🏠</button>
+        <button class="emoji-option">🛏️</button>
+        <button class="emoji-option">🍽️</button>
+        <button class="emoji-option">🚗</button>
+        <button class="emoji-option">⭐</button>
+        <button class="emoji-option">📍</button>
+      </div>
+
+      <label>Start time</label>
+      <input class="start-time" type="time" value="09:00" />
+
+      <label>Duration at place</label>
+      <div class="pin-duration-row">
+        <input class="pin-duration-hours" type="number" min="0" step="1" value="1" />
+        <span>h</span>
+        <input class="pin-duration-minutes" type="number" min="0" max="59" step="5" value="0" />
+        <span>min</span>
+      </div>
+
+      <div class="pin-time-info">
+        <div>Start: <span class="pin-start-time">09:00</span></div>
+        <div>End: <span class="pin-end-time">10:00</span></div>
+      </div>
+    </div>
+  `;
+
+  const pinTitle = pinEl.querySelector(".pin-title");
+  const timeSummary = pinEl.querySelector(".pin-time-summary");
+  const toggleRouteBtn = pinEl.querySelector(".toggle-pin-btn");
+  const visibilityBtn = pinEl.querySelector(".toggle-visibility-btn");
+
+  const pinInput = pinEl.querySelector(".pin-query");
+  const emojiInput = pinEl.querySelector(".pin-emoji");
+  const startTimeInput = pinEl.querySelector(".start-time");
+  const pinStartTime = pinEl.querySelector(".pin-start-time");
+  const pinEndTime = pinEl.querySelector(".pin-end-time");
+  const durationHoursInput = pinEl.querySelector(".pin-duration-hours");
+  const durationMinutesInput = pinEl.querySelector(".pin-duration-minutes");
+
+  let pinMarker = null;
+  pinEl._pinMarker = null;
+  let isDirty = true;
+
+  function updatePinTitle() {
+    const place = pinInput.value.trim() || "Pin";
+    const emoji = emojiInput.value.trim() || "";
+    pinTitle.textContent = `${emoji} ${place}`;
+  }
+
+  function updatePinTimeDisplay() {
+    const startTime = startTimeInput.value;
+    const durationHours = Number(durationHoursInput.value || 0);
+    const durationMins = Number(durationMinutesInput.value || 0);
+    const durationMinutes = durationHours * 60 + durationMins;
+    const date = getDayDateForRoute(pinEl);
+
+    if (!startTime || !date) {
+      timeSummary.textContent = "—";
+      pinStartTime.textContent = "—";
+      pinEndTime.textContent = "—";
+      return;
+    }
+
+    const startDateTime = new Date(`${date}T${startTime}`);
+    const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
+
+    const startText = formatTimeOnly(startDateTime);
+    const endText = formatTimeOnly(endDateTime);
+
+    const dayOffset = getDayOffset(startDateTime, endDateTime);
+    const dayOffsetText = dayOffset > 0 ? ` +${dayOffset}` : "";
+
+    timeSummary.textContent = `${startText} - ${endText}${dayOffsetText}`;
+
+    pinStartTime.textContent = startText;
+    pinEndTime.textContent = `${endText}${dayOffsetText}`;
+  }
+
+  function markPinDirty() {
+    isDirty = true;
+
+    if (pinMarker) {
+      visibilityBtn.textContent = "Update";
+    }
+  }
+
+  function createEmojiIcon(emoji) {
+    return L.divIcon({
+      html: `<span class="emoji-marker">${emoji}</span>`,
+      className: "emoji-icon",
+      iconSize: [64, 64],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
+  }
+
+  pinInput.addEventListener("input", () => {
+    updatePinTitle();
+    markPinDirty();
+  });
+
+  emojiInput.addEventListener("input", markPinDirty);
+
+  startTimeInput.addEventListener("change", () => {
+    updatePinTimeDisplay();
+    markPinDirty();
+    updateUrlHash();
+  });
+
+  toggleRouteBtn.addEventListener("click", () => {
+    pinEl.classList.toggle("collapsed");
+    toggleRouteBtn.textContent = pinEl.classList.contains("collapsed") ? "+" : "−";
+    updateUrlHash();
+  });
+
+  visibilityBtn.addEventListener("click", async () => {
+    if (pinMarker && !isDirty) {
+      const isVisible = map.hasLayer(pinMarker);
+
+      if (isVisible) {
+        map.removeLayer(pinMarker);
+        visibilityBtn.textContent = "Show";
+      } else {
+        pinMarker.addTo(map);
+        visibilityBtn.textContent = "Hide";
+      }
+
+      updateUrlHash();
+      return;
+    }
+
+    if (pinMarker) map.removeLayer(pinMarker);
+
+    pinMarker = null;
+    pinEl._pinMarker = null;
+
+    const placeQuery = pinInput.value;
+    const emoji = emojiInput.value.trim() || "📍";
+
+    const placeResult = await searchPlace(placeQuery);
+    if (!placeResult.ok) {
+      alert(`Place failed: ${placeResult.error}`);
+      return;
+    }
+
+    pinInput.value = placeResult.place.name;
+    updatePinTitle();
+    updatePinTimeDisplay();
+
+    pinMarker = L.marker(
+      [placeResult.place.lat, placeResult.place.lng],
+      {
+        icon: createEmojiIcon(emoji),
+        zIndexOffset: 999999
+      }
+    )
+      .addTo(map)
+      .bindPopup(`
+        ${emoji} ${placeResult.place.name}<br>
+        ${timeSummary.textContent}
+      `);
+
+    pinEl._pinMarker = pinMarker;
+
+    isDirty = false;
+    visibilityBtn.textContent = "Hide";
+
+    updateUrlHash();
+  });
+
+  [durationHoursInput, durationMinutesInput].forEach((input) => {
+    input.addEventListener("input", () => {
+      updatePinTimeDisplay();
+      markPinDirty();
+      updateUrlHash();
+    });
+  });
+
+  pinEl.querySelectorAll(".emoji-option").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      emojiInput.value = btn.textContent;
+      updatePinTitle();
+      markPinDirty();
+      updateUrlHash();
+    });
+  });
+
+  pinEl.querySelector(".delete-pin-btn").addEventListener("click", () => {
+    if (pinMarker) map.removeLayer(pinMarker);
+
+    pinEl.remove();
+
+    updateUrlHash();
+  });
+
+  updatePinTitle();
+  container.appendChild(pinEl);
 }
 
 function addRouteEditor(container) {
@@ -103,10 +336,10 @@ function addRouteEditor(container) {
 
     <div class="route-body">
       <label>From</label>
-      <input class="from-query" placeholder="e.g. Hamburg Hauptbahnhof" value="${defaultFrom}" />
+      <input class="from-query" placeholder="From Where?" value="${defaultFrom}" />
 
       <label>To</label>
-      <input class="to-query" placeholder="e.g. Elbphilharmonie Hamburg"/>
+      <input class="to-query" placeholder="To Where?"/>
 
       <label>Transport</label>
       <select class="mode">
@@ -156,11 +389,6 @@ function addRouteEditor(container) {
     if (routeLayer) {
       visibilityBtn.textContent = "Update";
     }
-
-    /*if (routeLayer && map.hasLayer(routeLayer)) {
-      routeEl.style.background = "";
-      routeEl.style.borderColor = "";
-    }*/
   }
 
   function restyleRoute() {
@@ -208,6 +436,7 @@ function addRouteEditor(container) {
   toggleRouteBtn.addEventListener("click", () => {
     routeEl.classList.toggle("collapsed");
     toggleRouteBtn.textContent = routeEl.classList.contains("collapsed") ? "+" : "−";
+    updateUrlHash();
   });
 
   routeEl.querySelector(".toggle-visibility-btn").addEventListener("click", async () => {
@@ -268,11 +497,11 @@ function addRouteEditor(container) {
 
     fromMarker = L.marker([fromResult.place.lat, fromResult.place.lng])
       .addTo(map)
-      .bindPopup(`From: ${fromResult.place.name}`);
+      .bindPopup(fromResult.place.name);
 
     toMarker = L.marker([toResult.place.lat, toResult.place.lng])
       .addTo(map)
-      .bindPopup(`To: ${toResult.place.name}`);
+      .bindPopup(toResult.place.name);
 
     const routeResult = await addRoute(
       fromResult.place,
@@ -473,11 +702,22 @@ function getLastRouteToValue() {
   return lastRoute.querySelector(".to-query")?.value.trim() || "";
 }
 
-function getTodayDateString() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
+function getNextDateString() {
+  const lastDay = daysContainer.lastElementChild;
+
+  let dayDate = null;
+
+  if (lastDay) {
+    const lastDayDateInput = lastDay.querySelector(".day-date");
+    dayDate = new Date(lastDayDateInput.value + "T00:00:00");
+    dayDate.setDate(dayDate.getDate() + 1);
+  } else {
+    dayDate = new Date();
+  }
+
+  const year = dayDate.getFullYear();
+  const month = String(dayDate.getMonth() + 1).padStart(2, "0");
+  const day = String(dayDate.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -560,7 +800,7 @@ function clearState() {
   daysContainer.innerHTML = "";
 }
 
-function getState() {
+function getStateV1() {
   return {
     version: 1,
     days: Array.from(document.querySelectorAll(".day")).map(dayEl => {
@@ -587,8 +827,53 @@ function getState() {
   };
 }
 
+function getStateV2() {
+  return {
+    version: 2,
+    days: Array.from(document.querySelectorAll(".day")).map(dayEl => {
+      return {
+        date: dayEl.querySelector(".day-date")?.value || "",
+        collapsed: dayEl.classList.contains("collapsed"),
+
+        items: Array.from(dayEl.querySelectorAll(".route, .pin")).map(itemEl => {
+          if (itemEl.classList.contains("route")) {
+            const routeLayer = itemEl._routeLayer || null;
+
+            return {
+              type: "route",
+              from: itemEl.querySelector(".from-query")?.value || "",
+              to: itemEl.querySelector(".to-query")?.value || "",
+              mode: itemEl.querySelector(".mode")?.value || "driving",
+              startTime: itemEl.querySelector(".start-time")?.value || "",
+              color: itemEl.querySelector(".color-picker")?.value || "#ff0000",
+              alpha: itemEl.querySelector(".alpha-picker")?.value || "0.85",
+              collapsed: itemEl.classList.contains("collapsed"),
+              hidden: routeLayer ? !map.hasLayer(routeLayer) : true
+            };
+          }
+
+          if (itemEl.classList.contains("pin")) {
+            const pinLayer = itemEl._pinMarker || null;
+
+            return {
+              type: "pin",
+              place: itemEl.querySelector(".pin-query")?.value || "",
+              emoji: itemEl.querySelector(".pin-emoji")?.value || "",
+              startTime: itemEl.querySelector(".start-time")?.value || "",
+              durationHours: itemEl.querySelector(".pin-duration-hours")?.value || "",
+              durationMinutes: itemEl.querySelector(".pin-duration-minutes")?.value || "",
+              collapsed: itemEl.classList.contains("collapsed"),
+              hidden: pinLayer ? !map.hasLayer(pinLayer) : true
+            };
+          }
+        })
+      };
+    })
+  };
+}
+
 function encodeStateHash() {
-  const json = JSON.stringify(getState());
+  const json = JSON.stringify(getStateV2());
   const bytes = new TextEncoder().encode(json);
 
   let binary = "";
@@ -623,6 +908,30 @@ function updateUrlHash() {
   history.replaceState(null, "", `#${encoded}`);
 }
 
+function loadPin(dayContainer, pinState) {
+  addPinEditor(dayContainer);
+
+  const pinEl = dayContainer.lastElementChild;
+
+  pinEl.querySelector(".pin-query").value = pinState.place;
+  pinEl.querySelector(".pin-emoji").value = pinState.emoji;
+  pinEl.querySelector(".start-time").value = pinState.startTime;
+  pinEl.querySelector(".pin-duration-hours").value = pinState.durationHoursInput;
+  pinEl.querySelector(".pin-duration-minutes").value = pinState.durationMinutesInput;
+
+  if (!pinState.collapsed) {
+    pinEl.classList.remove("collapsed");
+    pinEl.querySelector(".toggle-route-btn").textContent = "−";
+  }
+
+  pinEl.querySelector(".pin-query").dispatchEvent(new Event("input"));
+  pinEl.querySelector(".pin-emoji").dispatchEvent(new Event("input"));
+
+  if (!pinState.hidden) {
+    pinEl.querySelector(".toggle-visibility-btn").click();
+  }
+}
+
 function loadRoute(dayContainer, routeState) {
   addRouteEditor(dayContainer);
 
@@ -653,18 +962,26 @@ function loadDay(dayState) {
 
   const dayEl = daysContainer.lastElementChild;
 
-  dayEl.querySelector(".day-date").value = dayState.date;
+  const dateInput = dayEl.querySelector(".day-date");
+  dateInput.value = dayState.date;
+  dateInput.dispatchEvent(new Event("change"));
 
   if (dayState.collapsed) {
     dayEl.classList.add("collapsed");
     dayEl.querySelector(".toggle-day-btn").textContent = "+";
   }
 
-  const routesContainer = dayEl.querySelector(".routes-container");
+  const container = dayEl.querySelector(".routes-container");
 
-  for (const routeState of dayState.routes) {
-    loadRoute(routesContainer, routeState);
+  dayState.items.forEach(state => {
+  if (state.type === "route") {
+    loadRoute(container, state);
   }
+
+  if (state.type === "pin") {
+    loadPin(container, state);
+  }
+});
 }
 
 function loadState(stateObj) {
