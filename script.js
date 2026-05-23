@@ -55,6 +55,7 @@ function addDay() {
   });
 
   deleteBtn.addEventListener("click", () => {
+    routesContainer.querySelectorAll(".route, .pin").forEach((element) => element.removeCleanup())
     dayEl.remove();
     updateUrlHash();
   });
@@ -91,6 +92,9 @@ function addPinEditor(container) {
   const pinEl = document.createElement("div");
   pinEl.className = "pin collapsed";
 
+  
+  const defaultPlace = getLastRouteToValue();
+  const defaultTime = getLastRouteEndTime();
   pinEl.innerHTML = `
     <div class="pin-header">
       <div class="pin-header-info">
@@ -107,7 +111,7 @@ function addPinEditor(container) {
 
     <div class="pin-body">
       <label>Place</label>
-      <input class="pin-query" placeholder="Where?" />
+      <input class="pin-query" placeholder="Where?" value="${defaultPlace}"/>
 
       <label>Emoji</label>
       <div class="emoji-picker-row">
@@ -121,19 +125,19 @@ function addPinEditor(container) {
       </div>
 
       <label>Start time</label>
-      <input class="start-time" type="time" value="09:00" />
+      <input class="start-time" type="time" value="${defaultTime}" />
 
       <label>Duration at place</label>
       <div class="pin-duration-row">
-        <input class="pin-duration-hours" type="number" min="0" step="1" value="1" />
+        <input class="pin-duration-hours" type="number" min="0" step="1" value="0" />
         <span>h</span>
         <input class="pin-duration-minutes" type="number" min="0" max="59" step="5" value="0" />
         <span>min</span>
       </div>
 
       <div class="pin-time-info">
-        <div>Start: <span class="pin-start-time">09:00</span></div>
-        <div>End: <span class="pin-end-time">10:00</span></div>
+        <div>Start: <span class="pin-start-time">${defaultTime}</span></div>
+        <div>End: <span class="pin-end-time">${defaultTime}</span></div>
       </div>
     </div>
   `;
@@ -299,11 +303,14 @@ function addPinEditor(container) {
     });
   });
 
-  pinEl.querySelector(".delete-pin-btn").addEventListener("click", () => {
+  pinEl.removeCleanup = function() {
     if (pinMarker) map.removeLayer(pinMarker);
 
     pinEl.remove();
+  }
 
+  pinEl.querySelector(".delete-pin-btn").addEventListener("click", () => {
+    pinEl.removeCleanup();
     updateUrlHash();
   });
 
@@ -320,6 +327,7 @@ function addRouteEditor(container) {
   const defaultHex = previousColorPicker ? previousColorPicker.value : "#ff0000";
 
   const defaultFrom = getLastRouteToValue();
+  const defaultStartTime = getLastRouteEndTime();
   routeEl.innerHTML = `
     <div class="route-header">
       <div class="route-header-info">
@@ -355,7 +363,7 @@ function addRouteEditor(container) {
       </div>
 
       <label>Start time</label>
-      <input class="start-time" type="time" value="09:00" />
+      <input class="start-time" type="time" value="${defaultStartTime}" />
 
       <div class="route-time-info">
         <div>Duration: <span class="route-duration">—</span></div>
@@ -527,13 +535,16 @@ function addRouteEditor(container) {
     updateUrlHash();
   });
 
-  routeEl.querySelector(".delete-route-btn").addEventListener("click", () => {
+  routeEl.removeCleanup = function () {
     if (routeLayer) map.removeLayer(routeLayer);
     if (fromMarker) map.removeLayer(fromMarker);
     if (toMarker) map.removeLayer(toMarker);
 
     routeEl.remove();
+  }
 
+  routeEl.querySelector(".delete-route-btn").addEventListener("click", () => {
+    routeEl.removeCleanup();
     updateUrlHash();
   });
 
@@ -694,12 +705,22 @@ function applyRouteTheme(routeEl) {
 }
 
 function getLastRouteToValue() {
-  const allRoutes = document.querySelectorAll(".route");
+  const allRoutes = document.querySelectorAll(".route, .pin");
   const lastRoute = allRoutes[allRoutes.length - 1];
 
-  if (!lastRoute) return "";
+  return lastRoute?.querySelector(".to-query, .pin-query")?.value.trim() || "";
+}
 
-  return lastRoute.querySelector(".to-query")?.value.trim() || "";
+function getLastRouteEndTime() {
+  const defaultTime = "00:00";
+  const allRoutes = document.querySelectorAll(".route, .pin");
+  const lastRoute = allRoutes[allRoutes.length - 1];
+
+  const text = lastRoute?.querySelector(".route-end-time, .pin-end-time")?.textContent.trim();
+
+  if (text == "—") return defaultTime;
+
+  return text || defaultTime;
 }
 
 function getNextDateString() {
